@@ -1,0 +1,29 @@
+{
+  "name": "plac3d",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx watch server/index.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
+    "build": "tsc && vite build",
+    "build:server": "tsc -p tsconfig.server.json",
+    "test": "node --test --import tsx",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/three": "^0.185.4",
+    "@types/ws": "^8.18.1",
+    "concurrently": "^10.0.5",
+    "tsx": "^4.23.12",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "three": "^0.185.1",
+    "ws": "^8.21.3"
+  }
+}

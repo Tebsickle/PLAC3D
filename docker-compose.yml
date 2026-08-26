@@ -1,0 +1,14 @@
+services:
+  plac3d:
+    build: .
+    ports:
+      - "5173:8787"
+      - "8787:8787"
+    environment:
+      PORT: 8787
+      SESSION_SECRET: change-this-in-production
+      DATABASE_PATH: /app/data/plac3d.db
+    volumes:
+      - plac3d-data:/app/data
+volumes:
+  plac3d-data:
