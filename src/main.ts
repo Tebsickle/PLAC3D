@@ -9,7 +9,7 @@ app.setAttribute('aria-busy', 'true')
 app.innerHTML = `<div class="loading-screen" id="loading-screen"><div class="loading-mark">P3</div><p>LOADING WORLD</p><span class="loading-bar"><i></i></span></div><main class="app-shell">
   <header class="topbar"><div class="brand"><span class="brand-mark">P3</span><div><strong>PLAC3D</strong></div></div><div class="connection"><span class="status-dot"></span><span id="connection-label">LOCAL PREVIEW</span></div></header>
   <section class="workspace"><div id="viewport"></div><aside class="control-panel">
-    <div class="panel-heading"><span class="eyebrow">BUILD MODE</span><h1>Shape the world.</h1><p>Paint a shared landscape one voxel at a time.</p></div>
+    <div class="panel-heading"><span class="eyebrow">BUILD MODE</span><h1>PLAC3D</h1><p>Click or drag to add voxels!</p></div>
     <div class="rule"></div><div class="control-section"><div class="section-label"><span>PALETTE</span><span id="mode-label">WHITE</span></div><div class="palette" id="palette"></div></div>
     <div class="control-section"><div class="section-label"><span>PENDING VOXELS</span><span id="batch-count">0 / 100</span></div><div class="batch-scroll-frame"><div class="batch-list" id="batch-list"><span class="empty-state">Click the terrain to queue a voxel.</span></div><span class="scroll-hint">SCROLL ↕</span></div></div>
     <button class="submit-button" id="submit" type="button" disabled><span>SUBMIT BATCH</span><span class="button-arrow">↗</span></button><div class="batch-actions"><button class="clear-button" id="undo" type="button" disabled>UNDO LAST</button><button class="clear-button" id="clear" type="button">CLEAR PENDING</button></div>
