@@ -23,4 +23,9 @@
 .control-panel { min-height: 0; }
 .bottom-hint { position: relative; z-index: 1; min-height: 42px; }
 .workspace canvas { touch-action: none; }
+.brand-mark, .loading-mark { color: #f4eaf1; background: #86145f; }
+.section-label span:last-child { color: #c56aa7; }
+.swatch.is-selected { outline-color: #d88abb; }
+.loading-bar i { background: #c56aa7; }
+.cooldown:not(.is-waiting) #cooldown-value { color: #91b77a; }
 .loading-screen { position: fixed; inset: 0; z-index: 10; display: grid; place-content: center; justify-items: center; gap: 18px; background: #111719; color: #dfe7dc; }.loading-mark { display: grid; place-items: center; width: 58px; height: 58px; color: #111719; background: #d6c77b; font-size: 18px; font-weight: 700; letter-spacing: .04em; animation: loading-pulse 1.4s ease-in-out infinite; }.loading-screen p { margin: 0; color: #879b91; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .16em; }.loading-bar { display: block; width: 150px; height: 2px; overflow: hidden; background: #344340; }.loading-bar i { display: block; width: 45%; height: 100%; background: #d6c77b; animation: loading-progress 1.2s ease-in-out infinite; }.loading-screen.is-loaded { opacity: 0; pointer-events: none; transition: opacity .35s ease; } @keyframes loading-pulse { 50% { transform: scale(.92); opacity: .7; } } @keyframes loading-progress { from { transform: translateX(-100%); } to { transform: translateX(330%); } }
