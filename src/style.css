@@ -22,3 +22,4 @@
 .app-shell { grid-template-rows: 76px minmax(0, 1fr) 42px; }
 .control-panel { min-height: 0; }
 .bottom-hint { position: relative; z-index: 1; min-height: 42px; }
+.workspace canvas { touch-action: none; }

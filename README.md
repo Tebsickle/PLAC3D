@@ -30,7 +30,7 @@ The Compose setup serves the production Vite build, so no separate `npm run dev`
 - Right mouse button rotates the camera.
 - Middle mouse button pans.
 - Mouse wheel zooms.
-- Left click queues a voxel at ground level.
+- Left click queues a voxel; click-drag to queue voxels across the landscape. Dragging does not target voxels created earlier in the same gesture.
 - Choose one of the preset palette colors or erase, then submit up to 100 queued voxels.
 - Each submitted batch starts a 60-second cooldown for that browser session.
 
