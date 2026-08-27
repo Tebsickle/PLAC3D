@@ -5,7 +5,8 @@ import { MAX_BATCH_SIZE, PALETTE, WORLD_SIZE, chunkKey, paletteColor, type Palet
 
 type VoxelMode = PaletteId | 'erase'
 const app = document.querySelector<HTMLDivElement>('#app')!
-app.innerHTML = `<main class="app-shell">
+app.setAttribute('aria-busy', 'true')
+app.innerHTML = `<div class="loading-screen" id="loading-screen"><div class="loading-mark">P3</div><p>LOADING WORLD</p><span class="loading-bar"><i></i></span></div><main class="app-shell">
   <header class="topbar"><div class="brand"><span class="brand-mark">P3</span><div><strong>PLAC3D</strong></div></div><div class="connection"><span class="status-dot"></span><span id="connection-label">LOCAL PREVIEW</span></div></header>
   <section class="workspace"><div id="viewport"></div><aside class="control-panel">
     <div class="panel-heading"><span class="eyebrow">BUILD MODE</span><h1>Shape the world.</h1><p>Paint a shared landscape one voxel at a time.</p></div>
@@ -28,6 +29,8 @@ const clearButton = document.querySelector<HTMLButtonElement>('#clear')!
 const cooldownValue = document.querySelector<HTMLElement>('#cooldown-value')!
 const connectionLabel = document.querySelector<HTMLElement>('#connection-label')!
 const cursorPosition = document.querySelector<HTMLElement>('#cursor-position')!
+const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')!
+const finishLoading = () => { app.removeAttribute('aria-busy'); loadingScreen.classList.add('is-loaded'); window.setTimeout(() => loadingScreen.remove(), 350) }
 
 let mode: VoxelMode = 'white'
 let lastColor: PaletteId = 'white'
@@ -135,7 +138,7 @@ renderer.domElement.addEventListener('lostpointercapture', resetPointerGesture)
 renderer.domElement.addEventListener('click', (event) => { if (event.button !== 0 || suppressNextClick) { suppressNextClick = false; return }; const position = pick(event); if (position) queuePlacement(position, mode) })
 submitButton.addEventListener('click', () => { if (!socket || socket.readyState !== WebSocket.OPEN || !pending.length) { cooldownValue.textContent = 'SERVER OFFLINE'; return }; socket.send(JSON.stringify({ type: 'place', requestId: crypto.randomUUID(), placements: pending })); submitButton.disabled = true })
 
-const connect = () => { socket = new WebSocket(import.meta.env.VITE_WS_URL ?? 'ws://localhost:8787'); socket.addEventListener('open', () => { connectionLabel.textContent = 'LIVE WORLD'; document.querySelector('.status-dot')?.classList.add('is-live'); socket?.send(JSON.stringify({ type: 'hello', token: localStorage.getItem('plac3d-token') ?? undefined })) }); socket.addEventListener('message', (event) => { const message = JSON.parse(event.data) as ServerMessage; if (message.type === 'hello') { localStorage.setItem('plac3d-token', message.token); cooldownUntil = message.cooldownUntil; socket?.send(JSON.stringify({ type: 'subscribe', chunks: ['31,0,31', '30,0,31', '31,0,30', '30,0,30'] })) } if (message.type === 'chunks') Object.values(message.chunks).flat().forEach(updateVoxel); if (message.type === 'updates') { message.voxels.forEach(updateVoxel); message.erased.forEach(removeVoxel) } if (message.type === 'placed') { cooldownUntil = message.cooldownUntil; pending = []; renderBatch() } if (message.type === 'error') { cooldownUntil = message.cooldownUntil ?? cooldownUntil; cooldownValue.textContent = message.message.toUpperCase(); renderBatch() } }); socket.addEventListener('close', () => { connectionLabel.textContent = 'LOCAL PREVIEW'; document.querySelector('.status-dot')?.classList.remove('is-live') }) }
+const connect = () => { socket = new WebSocket(import.meta.env.VITE_WS_URL ?? 'ws://localhost:8787'); socket.addEventListener('open', () => { connectionLabel.textContent = 'LIVE WORLD'; document.querySelector('.status-dot')?.classList.add('is-live'); socket?.send(JSON.stringify({ type: 'hello', token: localStorage.getItem('plac3d-token') ?? undefined })) }); socket.addEventListener('message', (event) => { const message = JSON.parse(event.data) as ServerMessage; if (message.type === 'hello') { localStorage.setItem('plac3d-token', message.token); cooldownUntil = message.cooldownUntil; socket?.send(JSON.stringify({ type: 'subscribe', chunks: ['31,0,31', '30,0,31', '31,0,30', '30,0,30'] })) } if (message.type === 'chunks') { Object.values(message.chunks).flat().forEach(updateVoxel); finishLoading() } if (message.type === 'updates') { message.voxels.forEach(updateVoxel); message.erased.forEach(removeVoxel) } if (message.type === 'placed') { cooldownUntil = message.cooldownUntil; pending = []; renderBatch() } if (message.type === 'error') { cooldownUntil = message.cooldownUntil ?? cooldownUntil; cooldownValue.textContent = message.message.toUpperCase(); renderBatch() } }); socket.addEventListener('close', () => { connectionLabel.textContent = 'LOCAL PREVIEW'; document.querySelector('.status-dot')?.classList.remove('is-live') }) }
 connect()
 
 const resize = () => { const width = viewport.clientWidth; const height = viewport.clientHeight; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width, height, false) }; window.addEventListener('resize', resize); resize()
