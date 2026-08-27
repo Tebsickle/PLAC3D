@@ -9,6 +9,4 @@ services:
       SESSION_SECRET: change-this-in-production
       DATABASE_PATH: /app/data/plac3d.db
     volumes:
-      - plac3d-data:/app/data
-volumes:
-  plac3d-data:
+      - ./plac3d.db:/app/data/plac3d.db
