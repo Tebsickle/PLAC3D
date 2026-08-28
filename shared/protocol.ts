@@ -35,7 +35,14 @@ export type ServerMessage =
   | { type: 'hello'; token: string; cooldownUntil: number }
   | { type: 'chunks'; chunks: Record<string, Voxel[]> }
   | { type: 'updates'; voxels: Voxel[]; erased: Array<{ x: number; y: number; z: number }> }
-  | { type: 'placed'; requestId: string; cooldownUntil: number; count: number }
+  | {
+      type: 'placed'
+      requestId: string
+      cooldownUntil: number
+      count: number
+      voxels: Voxel[]
+      erased: Array<{ x: number; y: number; z: number }>
+    }
   | { type: 'error'; requestId?: string; code: string; message: string; cooldownUntil?: number }
 
 export const paletteColor = (id: PaletteId) => PALETTE.find((entry) => entry.id === id)?.hex ?? '#ffffff'

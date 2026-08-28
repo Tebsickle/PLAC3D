@@ -121,15 +121,6 @@ button {
   font-size: 15px;
   letter-spacing: 0.16em;
 }
-.brand small {
-  display: block;
-  margin-top: 2px;
-  color: #879b91;
-  font-family: "DM Mono", monospace;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
 .connection {
   display: flex;
   align-items: center;
@@ -177,7 +168,6 @@ button {
   border-left: 1px solid #2c3a39;
   background: #192122;
 }
-.eyebrow,
 .section-label,
 .panel-footer,
 .bottom-hint {
@@ -382,10 +372,6 @@ button {
   border-top: 1px solid #2c3a39;
   background: #111719;
 }
-.coordinates {
-  margin-left: auto;
-  color: #d6c77b;
-}
 @media (max-width: 720px) {
   body {
     overflow: auto;
@@ -416,14 +402,8 @@ button {
     min-height: 46px;
     padding: 10px 16px;
   }
-  .coordinates {
-    margin-left: 0;
-  }
   .connection {
     font-size: 8px;
-  }
-  .brand small {
-    display: none;
   }
 }
 .palette {

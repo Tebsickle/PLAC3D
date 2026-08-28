@@ -2,6 +2,7 @@ import './style.css'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
+  CHUNK_SIZE,
   MAX_BATCH_SIZE,
   PALETTE,
   WORLD_SIZE,
@@ -133,6 +134,8 @@ let pending: Placement[] = []
 let renderedEraseKey = ''
 let cooldownUntil = 0
 let socket: WebSocket | null = null
+let activeSubmitRequestId: string | null = null
+let subscribedChunkSignature = ''
 modeLabel.style.color = paletteColor(mode)
 const voxels = new Map<string, Voxel>()
 const chunkMeshes = new Map<string, THREE.Group>()
@@ -259,10 +262,14 @@ const rebuildChunk = (key: string) => {
       }
     })
   }
-  const group = new THREE.Group()
   const entries = [...voxels.values()].filter(
     (voxel) => chunkKey(voxel.x, voxel.y, voxel.z) === key,
   )
+  if (!entries.length) {
+    chunkMeshes.delete(key)
+    return
+  }
+  const group = new THREE.Group()
   const byColor = new Map<PaletteId, Voxel[]>()
   entries.forEach((voxel) =>
     byColor.set(voxel.color, [...(byColor.get(voxel.color) ?? []), voxel]),
@@ -309,6 +316,20 @@ const updateVoxel = (voxel: Voxel) => {
 const removeVoxel = (position: { x: number; y: number; z: number }) => {
   voxels.delete(`${position.x},${position.y},${position.z}`)
   rebuildChunk(chunkKey(position.x, position.y, position.z))
+}
+const applyChunkSnapshots = (chunks: Record<string, Voxel[]>) => {
+  const chunkEntries = Object.entries(chunks)
+  if (!chunkEntries.length) return
+  const refreshedKeys = new Set(chunkEntries.map(([key]) => key))
+  for (const [key, voxel] of voxels) {
+    if (refreshedKeys.has(chunkKey(voxel.x, voxel.y, voxel.z)))
+      voxels.delete(key)
+  }
+  for (const [key, chunkVoxels] of chunkEntries) {
+    for (const voxel of chunkVoxels)
+      voxels.set(`${voxel.x},${voxel.y},${voxel.z}`, voxel)
+    rebuildChunk(key)
+  }
 }
 
 const rebuildPendingPreview = () => {
@@ -360,7 +381,10 @@ const rebuildPendingPreview = () => {
 
 const renderBatch = () => {
   batchCount.textContent = `${pending.length} / ${MAX_BATCH_SIZE}`
-  submitButton.disabled = pending.length === 0 || Date.now() < cooldownUntil
+  submitButton.disabled =
+    pending.length === 0 ||
+    Date.now() < cooldownUntil ||
+    activeSubmitRequestId !== null
   undoButton.disabled = pending.length === 0
   batchList.innerHTML = pending.length
     ? pending
@@ -393,7 +417,8 @@ const renderBatch = () => {
 }
 const updateCooldown = () => {
   const remaining = Math.max(0, cooldownUntil - Date.now())
-  submitButton.disabled = pending.length === 0 || remaining > 0
+  submitButton.disabled =
+    pending.length === 0 || remaining > 0 || activeSubmitRequestId !== null
   cooldownValue.textContent = remaining
     ? `READY IN ${Math.ceil(remaining / 1000)}S`
     : 'AVAILABLE TO SUBMIT'
@@ -687,19 +712,74 @@ renderer.domElement.addEventListener('click', (event) => {
   if (position) queuePlacement(position, mode)
 })
 submitButton.addEventListener('click', () => {
-  if (!socket || socket.readyState !== WebSocket.OPEN || !pending.length) {
+  if (
+    !socket ||
+    socket.readyState !== WebSocket.OPEN ||
+    !pending.length ||
+    activeSubmitRequestId !== null
+  ) {
     cooldownValue.textContent = 'SERVER OFFLINE'
     return
   }
+  const requestId = crypto.randomUUID()
+  activeSubmitRequestId = requestId
   socket.send(
     JSON.stringify({
       type: 'place',
-      requestId: crypto.randomUUID(),
+      requestId,
       placements: pending,
     }),
   )
   submitButton.disabled = true
 })
+
+const subscribeAroundCameraTarget = () => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return
+  const chunkCount = Math.ceil(WORLD_SIZE / CHUNK_SIZE)
+  const horizontalSpan = 8
+  const verticalSpan = 4
+  const targetChunkX = Math.floor(
+    THREE.MathUtils.clamp(
+      controls.target.x + WORLD_SIZE / 2,
+      0,
+      WORLD_SIZE - 1,
+    ) / CHUNK_SIZE,
+  )
+  const targetChunkY = Math.floor(
+    THREE.MathUtils.clamp(controls.target.y, 0, WORLD_SIZE - 1) / CHUNK_SIZE,
+  )
+  const targetChunkZ = Math.floor(
+    THREE.MathUtils.clamp(
+      controls.target.z + WORLD_SIZE / 2,
+      0,
+      WORLD_SIZE - 1,
+    ) / CHUNK_SIZE,
+  )
+  const startX = THREE.MathUtils.clamp(
+    targetChunkX - Math.floor(horizontalSpan / 2),
+    0,
+    chunkCount - horizontalSpan,
+  )
+  const startY = THREE.MathUtils.clamp(
+    targetChunkY - 1,
+    0,
+    chunkCount - verticalSpan,
+  )
+  const startZ = THREE.MathUtils.clamp(
+    targetChunkZ - Math.floor(horizontalSpan / 2),
+    0,
+    chunkCount - horizontalSpan,
+  )
+  const signature = `${startX},${startY},${startZ}`
+  if (signature === subscribedChunkSignature) return
+  subscribedChunkSignature = signature
+  const chunks: string[] = []
+  for (let x = startX; x < startX + horizontalSpan; x += 1)
+    for (let y = startY; y < startY + verticalSpan; y += 1)
+      for (let z = startZ; z < startZ + horizontalSpan; z += 1)
+        chunks.push(`${x},${y},${z}`)
+  socket.send(JSON.stringify({ type: 'subscribe', chunks }))
+}
 
 const connect = () => {
   const websocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -723,15 +803,11 @@ const connect = () => {
     if (message.type === 'hello') {
       localStorage.setItem('plac3d-token', message.token)
       cooldownUntil = message.cooldownUntil
-      socket?.send(
-        JSON.stringify({
-          type: 'subscribe',
-          chunks: ['31,0,31', '30,0,31', '31,0,30', '30,0,30'],
-        }),
-      )
+      subscribedChunkSignature = ''
+      subscribeAroundCameraTarget()
     }
     if (message.type === 'chunks') {
-      Object.values(message.chunks).flat().forEach(updateVoxel)
+      applyChunkSnapshots(message.chunks)
       finishLoading()
     }
     if (message.type === 'updates') {
@@ -739,17 +815,31 @@ const connect = () => {
       message.erased.forEach(removeVoxel)
     }
     if (message.type === 'placed') {
+      if (message.requestId !== activeSubmitRequestId) return
+      message.voxels.forEach(updateVoxel)
+      message.erased.forEach(removeVoxel)
       cooldownUntil = message.cooldownUntil
+      activeSubmitRequestId = null
       pending = []
       renderBatch()
     }
     if (message.type === 'error') {
+      if (
+        message.requestId &&
+        activeSubmitRequestId &&
+        message.requestId !== activeSubmitRequestId
+      )
+        return
+      if (message.requestId === activeSubmitRequestId)
+        activeSubmitRequestId = null
       cooldownUntil = message.cooldownUntil ?? cooldownUntil
       cooldownValue.textContent = message.message.toUpperCase()
       renderBatch()
     }
   })
   socket.addEventListener('close', () => {
+    activeSubmitRequestId = null
+    subscribedChunkSignature = ''
     connectionLabel.textContent = 'LOCAL PREVIEW'
     document.querySelector('.status-dot')?.classList.remove('is-live')
   })
@@ -788,6 +878,7 @@ const animate = () => {
     controls.target.add(direction)
   }
   controls.update()
+  subscribeAroundCameraTarget()
   renderer.render(scene, camera)
 }
 animate()
