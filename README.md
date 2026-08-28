@@ -11,7 +11,7 @@ npm install
 npm run dev:all
 ```
 
-Open `http://localhost:5173`. The client connects to `ws://localhost:8787` by default. Set `VITE_WS_URL` when the WebSocket server uses another URL.
+Open `http://localhost:5173`. Other devices on the same network can use `http://<your-computer-ip>:5173`. In development, Vite forwards the app's `/ws` connection to the local WebSocket server, so only port `5173` needs to be reachable. Set `VITE_WS_URL` only when the WebSocket server uses a different URL.
 
 ## Run the server with Docker Compose
 

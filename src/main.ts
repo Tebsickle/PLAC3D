@@ -24,20 +24,22 @@ app.innerHTML = `
     <span class="loading-bar"><i></i></span>
   </div>
   <main class="app-shell">
-    <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">P3</span>
-        <div><strong>PLAC3D</strong></div>
-      </div>
-      <div class="connection">
-        <span class="status-dot"></span>
-        <span id="connection-label">LOCAL PREVIEW</span>
-      </div>
-    </header>
     <section class="workspace">
-      <div id="viewport"></div>
+      <div id="viewport">
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark">P3</span>
+            <div><strong>PLAC3D</strong></div>
+          </div>
+          <div class="connection">
+            <span class="status-dot"></span>
+            <span id="connection-label">LOCAL PREVIEW</span>
+          </div>
+        </header>
+      </div>
       <aside class="control-panel">
         <div class="panel-heading">
+          <span class="camera-mode-label">CONTROL MODE</span>
           <div class="input-mode-toggle" id="input-mode-toggle" role="group" aria-label="Input mode">
             <span class="input-mode-highlight" aria-hidden="true"></span>
             <button class="input-mode-option is-active" type="button" data-input-mode="mouse" aria-pressed="true">
@@ -45,6 +47,9 @@ app.innerHTML = `
             </button>
             <button class="input-mode-option" type="button" data-input-mode="touchpad" aria-pressed="false">
               TOUCHPAD
+            </button>
+            <button class="input-mode-option" type="button" data-input-mode="mobile" aria-label="Mobile/Phone" aria-pressed="false">
+              MOBILE/PHONE
             </button>
           </div>
           <h1>PLAC3D</h1>
@@ -92,13 +97,13 @@ app.innerHTML = `
       </aside>
     </section>
     <footer class="bottom-hint">
-      <span>WASD MOVE</span>
-      <span>Z UNDO LAST</span>
-      <span>E TOGGLE ERASE</span>
+      <span data-desktop-hint>WASD MOVE</span>
+      <span data-desktop-hint>Z UNDO LAST</span>
+      <span data-desktop-hint>E TOGGLE ERASE</span>
       <span id="rotate-hint">RMB ROTATE</span>
       <span id="pan-hint">MMB PAN</span>
       <span id="zoom-hint">WHEEL ZOOM</span>
-      <span>LMB PAINT</span>
+      <span id="paint-hint">LMB PAINT</span>
     </footer>
   </main>`
 
@@ -120,6 +125,10 @@ const inputModeButtons = inputModeToggle.querySelectorAll<HTMLButtonElement>(
 const rotateHint = document.querySelector<HTMLElement>('#rotate-hint')!
 const panHint = document.querySelector<HTMLElement>('#pan-hint')!
 const zoomHint = document.querySelector<HTMLElement>('#zoom-hint')!
+const paintHint = document.querySelector<HTMLElement>('#paint-hint')!
+const desktopHints = document.querySelectorAll<HTMLElement>(
+  '[data-desktop-hint]',
+)
 const cursorPosition = document.querySelector<HTMLElement>('#cursor-position')!
 const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')!
 const finishLoading = () => {
@@ -136,6 +145,14 @@ let cooldownUntil = 0
 let socket: WebSocket | null = null
 let activeSubmitRequestId: string | null = null
 let subscribedChunkSignature = ''
+const createRequestId = () => {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  bytes[6] = (bytes[6] & 0x0f) | 0x40
+  bytes[8] = (bytes[8] & 0x3f) | 0x80
+  const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
+}
 modeLabel.style.color = paletteColor(mode)
 const voxels = new Map<string, Voxel>()
 const chunkMeshes = new Map<string, THREE.Group>()
@@ -157,26 +174,52 @@ controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE
 controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN
 controls.touches.ONE = null
 controls.touches.TWO = THREE.TOUCH.PAN
-type InputMode = 'mouse' | 'touchpad'
-let inputMode: InputMode = 'mouse'
+type InputMode = 'mouse' | 'touchpad' | 'mobile'
+const inputModeStorageKey = 'plac3d-input-mode'
+const savedInputMode = localStorage.getItem(inputModeStorageKey)
+let inputMode: InputMode =
+  savedInputMode === 'touchpad' || savedInputMode === 'mobile'
+    ? savedInputMode
+    : 'mouse'
 
 const setInputMode = (nextMode: InputMode) => {
   inputMode = nextMode
+  localStorage.setItem(inputModeStorageKey, nextMode)
   inputModeToggle.dataset.mode = nextMode
   inputModeButtons.forEach((button) => {
     const isActive = button.dataset.inputMode === nextMode
     button.classList.toggle('is-active', isActive)
     button.setAttribute('aria-pressed', String(isActive))
   })
-  controls.touches.ONE = nextMode === 'touchpad' ? THREE.TOUCH.ROTATE : null
+  controls.touches.ONE = nextMode === 'mouse' ? null : THREE.TOUCH.ROTATE
   controls.touches.TWO =
-    nextMode === 'touchpad' ? THREE.TOUCH.DOLLY_ROTATE : THREE.TOUCH.PAN
-  controls.enableZoom = nextMode === 'mouse'
+    nextMode === 'mobile'
+      ? THREE.TOUCH.DOLLY_PAN
+      : nextMode === 'touchpad'
+        ? THREE.TOUCH.DOLLY_ROTATE
+        : THREE.TOUCH.PAN
+  controls.enableZoom = nextMode !== 'touchpad'
   const isTouchpadMode = nextMode === 'touchpad'
-  rotateHint.textContent = isTouchpadMode ? 'SCROLL ROTATE' : 'RMB ROTATE'
-  panHint.textContent = isTouchpadMode ? 'SHIFT + 2-FINGER PAN' : 'MMB PAN'
-  zoomHint.textContent = isTouchpadMode ? 'PINCH ZOOM' : 'WHEEL ZOOM'
+  const isMobileMode = nextMode === 'mobile'
+  desktopHints.forEach((hint) => (hint.hidden = isMobileMode))
+  rotateHint.textContent = isMobileMode
+    ? 'SWIPE ROTATE'
+    : isTouchpadMode
+      ? 'SCROLL ROTATE'
+      : 'RMB ROTATE'
+  panHint.textContent = isMobileMode
+    ? '2-FINGER PAN'
+    : isTouchpadMode
+      ? 'SHIFT + 2-FINGER PAN'
+      : 'MMB PAN'
+  zoomHint.textContent = isMobileMode
+    ? 'PINCH ZOOM'
+    : isTouchpadMode
+      ? 'PINCH ZOOM'
+      : 'WHEEL ZOOM'
+  paintHint.textContent = isMobileMode ? 'TAP PLACE' : 'LMB PAINT'
 }
+setInputMode(inputMode)
 inputModeButtons.forEach((button) => {
   button.addEventListener('click', () => {
     const nextMode = button.dataset.inputMode as InputMode
@@ -600,6 +643,20 @@ let isDragging = false
 let suppressNextClick = false
 let dragPlacementKeys = new Set<string>()
 let pendingEraseKeysAtDragStart = new Set<string>()
+const mobileTouchPointers = new Map<number, { x: number; y: number }>()
+let mobileTouchGestureMoved = false
+const queuePlacementAtPointer = (event: PointerEvent) => {
+  const ignoredPendingKeys =
+    mode === 'erase'
+      ? new Set(
+          pending.map(
+            (placement) => `${placement.x},${placement.y},${placement.z}`,
+          ),
+        )
+      : undefined
+  const position = pick(event, true, mode, ignoredPendingKeys)
+  if (position) queuePlacement(position, mode)
+}
 const resetPointerGesture = () => {
   activePointerId = null
   isDragging = false
@@ -607,6 +664,18 @@ const resetPointerGesture = () => {
   pendingEraseKeysAtDragStart = new Set()
 }
 renderer.domElement.addEventListener('pointerdown', (event) => {
+  if (inputMode === 'mobile' && event.pointerType === 'touch') {
+    if (mobileTouchPointers.size === 0) {
+      mobileTouchGestureMoved = false
+      suppressNextClick = false
+    }
+    mobileTouchPointers.set(event.pointerId, {
+      x: event.clientX,
+      y: event.clientY,
+    })
+    if (mobileTouchPointers.size > 1) mobileTouchGestureMoved = true
+    return
+  }
   if (event.button !== 0 || activePointerId !== null) return
   activePointerId = event.pointerId
   pointerDownPosition = { x: event.clientX, y: event.clientY }
@@ -622,6 +691,16 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   renderer.domElement.setPointerCapture(event.pointerId)
 })
 renderer.domElement.addEventListener('pointermove', (event) => {
+  if (inputMode === 'mobile' && event.pointerType === 'touch') {
+    const start = mobileTouchPointers.get(event.pointerId)
+    if (
+      start &&
+      Math.hypot(event.clientX - start.x, event.clientY - start.y) >=
+        dragThreshold
+    )
+      mobileTouchGestureMoved = true
+    return
+  }
   if (activePointerId !== event.pointerId) {
     pick(event)
     return
@@ -664,6 +743,21 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   pick(event)
 })
 renderer.domElement.addEventListener('pointerup', (event) => {
+  if (inputMode === 'mobile' && event.pointerType === 'touch') {
+    const start = mobileTouchPointers.get(event.pointerId)
+    if (
+      start &&
+      Math.hypot(event.clientX - start.x, event.clientY - start.y) >=
+        dragThreshold
+    )
+      mobileTouchGestureMoved = true
+    mobileTouchPointers.delete(event.pointerId)
+    if (mobileTouchPointers.size === 0) {
+      suppressNextClick = true
+      if (!mobileTouchGestureMoved) queuePlacementAtPointer(event)
+    }
+    return
+  }
   if (activePointerId !== event.pointerId) return
   if (isDragging) {
     const position = pick(
@@ -693,23 +787,25 @@ renderer.domElement.addEventListener('pointerup', (event) => {
     renderer.domElement.releasePointerCapture(event.pointerId)
   resetPointerGesture()
 })
-renderer.domElement.addEventListener('pointercancel', resetPointerGesture)
-renderer.domElement.addEventListener('lostpointercapture', resetPointerGesture)
+renderer.domElement.addEventListener('pointercancel', (event) => {
+  if (inputMode === 'mobile' && event.pointerType === 'touch') {
+    mobileTouchPointers.delete(event.pointerId)
+    mobileTouchGestureMoved = true
+    suppressNextClick = true
+    return
+  }
+  resetPointerGesture()
+})
+renderer.domElement.addEventListener('lostpointercapture', (event) => {
+  if (inputMode !== 'mobile' || event.pointerType !== 'touch')
+    resetPointerGesture()
+})
 renderer.domElement.addEventListener('click', (event) => {
   if (event.button !== 0 || suppressNextClick) {
     suppressNextClick = false
     return
   }
-  const ignoredPendingKeys =
-    mode === 'erase'
-      ? new Set(
-          pending.map(
-            (placement) => `${placement.x},${placement.y},${placement.z}`,
-          ),
-        )
-      : undefined
-  const position = pick(event, true, mode, ignoredPendingKeys)
-  if (position) queuePlacement(position, mode)
+  queuePlacementAtPointer(event)
 })
 submitButton.addEventListener('click', () => {
   if (
@@ -721,7 +817,7 @@ submitButton.addEventListener('click', () => {
     cooldownValue.textContent = 'SERVER OFFLINE'
     return
   }
-  const requestId = crypto.randomUUID()
+  const requestId = createRequestId()
   activeSubmitRequestId = requestId
   socket.send(
     JSON.stringify({
@@ -783,9 +879,7 @@ const subscribeAroundCameraTarget = () => {
 
 const connect = () => {
   const websocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const defaultWebsocketUrl = import.meta.env.DEV
-    ? `${websocketProtocol}//${window.location.hostname}:8787`
-    : `${websocketProtocol}//${window.location.host}`
+  const defaultWebsocketUrl = `${websocketProtocol}//${window.location.host}/ws`
   const websocketUrl = import.meta.env.VITE_WS_URL ?? defaultWebsocketUrl
   socket = new WebSocket(websocketUrl)
   socket.addEventListener('open', () => {
