@@ -94,9 +94,9 @@ app.innerHTML = `
       <span>WASD MOVE</span>
       <span>Z UNDO LAST</span>
       <span>E TOGGLE ERASE</span>
-      <span>RMB ROTATE</span>
-      <span>MMB PAN</span>
-      <span>WHEEL ZOOM</span>
+      <span id="rotate-hint">RMB ROTATE</span>
+      <span id="pan-hint">MMB PAN</span>
+      <span id="zoom-hint">WHEEL ZOOM</span>
       <span>LMB PAINT</span>
     </footer>
   </main>`
@@ -116,6 +116,9 @@ const inputModeToggle = document.querySelector<HTMLDivElement>('#input-mode-togg
 const inputModeButtons = inputModeToggle.querySelectorAll<HTMLButtonElement>(
   '.input-mode-option',
 )
+const rotateHint = document.querySelector<HTMLElement>('#rotate-hint')!
+const panHint = document.querySelector<HTMLElement>('#pan-hint')!
+const zoomHint = document.querySelector<HTMLElement>('#zoom-hint')!
 const cursorPosition = document.querySelector<HTMLElement>('#cursor-position')!
 const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')!
 const finishLoading = () => {
@@ -165,6 +168,10 @@ const setInputMode = (nextMode: InputMode) => {
   controls.touches.TWO =
     nextMode === 'touchpad' ? THREE.TOUCH.DOLLY_ROTATE : THREE.TOUCH.PAN
   controls.enableZoom = nextMode === 'mouse'
+  const isTouchpadMode = nextMode === 'touchpad'
+  rotateHint.textContent = isTouchpadMode ? 'SCROLL ROTATE' : 'RMB ROTATE'
+  panHint.textContent = isTouchpadMode ? 'SHIFT + 2-FINGER PAN' : 'MMB PAN'
+  zoomHint.textContent = isTouchpadMode ? 'PINCH ZOOM' : 'WHEEL ZOOM'
 }
 inputModeButtons.forEach((button) => {
   button.addEventListener('click', () => {
@@ -183,6 +190,12 @@ renderer.domElement.addEventListener(
       const zoomScale = 1 + Math.min(Math.abs(event.deltaY), 100) * 0.01
       if (event.deltaY < 0) controls.dollyOut(zoomScale)
       if (event.deltaY > 0) controls.dollyIn(zoomScale)
+      return
+    }
+
+    if (event.shiftKey) {
+      const panScale = 0.8
+      controls.pan(event.deltaX * panScale, event.deltaY * panScale)
       return
     }
 
@@ -457,7 +470,7 @@ const pick = (
   event: PointerEvent,
   includePendingPreview = true,
   pickMode = mode,
-  ignoredPendingEraseKeys = new Set<string>(),
+  ignoredPendingKeys = new Set<string>(),
 ) => {
   const rect = renderer.domElement.getBoundingClientRect()
   pointer.set(
@@ -474,7 +487,7 @@ const pick = (
       if (
         pickMode !== 'erase' ||
         !includePendingPreview ||
-        !ignoredPendingEraseKeys.size
+        !ignoredPendingKeys.size
       )
         return true
       const point = intersection.point
@@ -489,7 +502,7 @@ const pick = (
         Math.min(WORLD_SIZE - 1, Math.floor(point.z + WORLD_SIZE / 2)),
       )
       const y = Math.max(0, Math.min(WORLD_SIZE - 1, Math.floor(point.y)))
-      return !ignoredPendingEraseKeys.has(`${x},${y},${z}`)
+      return !ignoredPendingKeys.has(`${x},${y},${z}`)
     })
   const hit = voxelHit ?? raycaster.intersectObject(ground)[0]
   if (!hit) return
@@ -543,7 +556,7 @@ let pointerDownPosition = { x: 0, y: 0 }
 let dragMode: VoxelMode = mode
 let isDragging = false
 let suppressNextClick = false
-let dragEraseKeys = new Set<string>()
+let dragPlacementKeys = new Set<string>()
 const resetPointerGesture = () => {
   activePointerId = null
   isDragging = false
@@ -555,7 +568,7 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   pointerDownPosition = { x: event.clientX, y: event.clientY }
   dragMode = mode
   isDragging = false
-  dragEraseKeys = new Set()
+  dragPlacementKeys = new Set()
   suppressNextClick = false
   renderer.domElement.setPointerCapture(event.pointerId)
 })
@@ -583,8 +596,8 @@ renderer.domElement.addEventListener('pointermove', (event) => {
         pending
           .filter(
             (placement) =>
-              placement.color === 'erase' &&
-              !dragEraseKeys.has(
+              placement.color === 'erase' ||
+              dragPlacementKeys.has(
                 `${placement.x},${placement.y},${placement.z}`,
               ),
           )
@@ -592,17 +605,8 @@ renderer.domElement.addEventListener('pointermove', (event) => {
       ),
     )
     if (position) {
-      queuePlacement(position, dragMode)
-      const key = `${position.x},${position.y},${position.z}`
-      if (
-        dragMode === 'erase' &&
-        pending.some(
-          (placement) =>
-            `${placement.x},${placement.y},${placement.z}` === key &&
-            placement.color === 'erase',
-        )
-      )
-        dragEraseKeys.add(key)
+      if (queuePlacement(position, dragMode))
+        dragPlacementKeys.add(`${position.x},${position.y},${position.z}`)
     }
     return
   }
@@ -619,8 +623,8 @@ renderer.domElement.addEventListener('pointerup', (event) => {
         pending
           .filter(
             (placement) =>
-              placement.color === 'erase' &&
-              !dragEraseKeys.has(
+              placement.color === 'erase' ||
+              dragPlacementKeys.has(
                 `${placement.x},${placement.y},${placement.z}`,
               ),
           )
@@ -628,17 +632,8 @@ renderer.domElement.addEventListener('pointerup', (event) => {
       ),
     )
     if (position) {
-      queuePlacement(position, dragMode)
-      const key = `${position.x},${position.y},${position.z}`
-      if (
-        dragMode === 'erase' &&
-        pending.some(
-          (placement) =>
-            `${placement.x},${placement.y},${placement.z}` === key &&
-            placement.color === 'erase',
-        )
-      )
-        dragEraseKeys.add(key)
+      if (queuePlacement(position, dragMode))
+        dragPlacementKeys.add(`${position.x},${position.y},${position.z}`)
     }
   }
   if (renderer.domElement.hasPointerCapture(event.pointerId))
