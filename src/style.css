@@ -193,6 +193,45 @@ button {
   line-height: 1;
   letter-spacing: -0.04em;
 }
+.input-mode-toggle {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  padding: 3px;
+  border: 1px solid #344340;
+  background: #111719;
+  overflow: hidden;
+  --mode-shift: 0%;
+}
+.input-mode-highlight {
+  position: absolute;
+  inset: 3px 50% 3px 3px;
+  background: #86145f;
+  transform: translateX(var(--mode-shift));
+  transition: transform 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.input-mode-toggle[data-mode="touchpad"] { --mode-shift: 100%; }
+.input-mode-option {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  padding: 8px 5px;
+  border: 0;
+  background: transparent;
+  color: #879b91;
+  font-family: "DM Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.input-mode-option:hover:not(.is-active) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f4eaf1;
+}
+.input-mode-option.is-active {
+  color: #f4eaf1;
+}
 .panel-heading p {
   margin: 0;
   color: #879b91;

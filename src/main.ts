@@ -37,7 +37,15 @@ app.innerHTML = `
       <div id="viewport"></div>
       <aside class="control-panel">
         <div class="panel-heading">
-          <span class="eyebrow">BUILD MODE</span>
+          <div class="input-mode-toggle" id="input-mode-toggle" role="group" aria-label="Input mode">
+            <span class="input-mode-highlight" aria-hidden="true"></span>
+            <button class="input-mode-option is-active" type="button" data-input-mode="mouse" aria-pressed="true">
+              MOUSE
+            </button>
+            <button class="input-mode-option" type="button" data-input-mode="touchpad" aria-pressed="false">
+              TOUCHPAD
+            </button>
+          </div>
           <h1>PLAC3D</h1>
           <p>Click or drag to add voxels!</p>
         </div>
@@ -104,6 +112,10 @@ const clearButton = document.querySelector<HTMLButtonElement>('#clear')!
 const cooldownValue = document.querySelector<HTMLElement>('#cooldown-value')!
 const connectionLabel =
   document.querySelector<HTMLElement>('#connection-label')!
+const inputModeToggle = document.querySelector<HTMLDivElement>('#input-mode-toggle')!
+const inputModeButtons = inputModeToggle.querySelectorAll<HTMLButtonElement>(
+  '.input-mode-option',
+)
 const cursorPosition = document.querySelector<HTMLElement>('#cursor-position')!
 const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')!
 const finishLoading = () => {
@@ -138,6 +150,48 @@ controls.mouseButtons.RIGHT = THREE.MOUSE.ROTATE
 controls.mouseButtons.MIDDLE = THREE.MOUSE.PAN
 controls.touches.ONE = null
 controls.touches.TWO = THREE.TOUCH.PAN
+type InputMode = 'mouse' | 'touchpad'
+let inputMode: InputMode = 'mouse'
+
+const setInputMode = (nextMode: InputMode) => {
+  inputMode = nextMode
+  inputModeToggle.dataset.mode = nextMode
+  inputModeButtons.forEach((button) => {
+    const isActive = button.dataset.inputMode === nextMode
+    button.classList.toggle('is-active', isActive)
+    button.setAttribute('aria-pressed', String(isActive))
+  })
+  controls.touches.ONE = nextMode === 'touchpad' ? THREE.TOUCH.ROTATE : null
+  controls.touches.TWO =
+    nextMode === 'touchpad' ? THREE.TOUCH.DOLLY_ROTATE : THREE.TOUCH.PAN
+  controls.enableZoom = nextMode === 'mouse'
+}
+inputModeButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    const nextMode = button.dataset.inputMode as InputMode
+    if (nextMode === inputMode) return
+    setInputMode(nextMode)
+  })
+})
+renderer.domElement.addEventListener(
+  'wheel',
+  (event) => {
+    if (inputMode !== 'touchpad') return
+
+    event.preventDefault()
+    if (event.ctrlKey) {
+      const zoomScale = 1 + Math.min(Math.abs(event.deltaY), 100) * 0.01
+      if (event.deltaY < 0) controls.dollyOut(zoomScale)
+      if (event.deltaY > 0) controls.dollyIn(zoomScale)
+      return
+    }
+
+    const rotationScale = 0.003
+    controls.rotateLeft(event.deltaX * rotationScale)
+    controls.rotateUp(event.deltaY * rotationScale)
+  },
+  { passive: false },
+)
 const movement = { forward: false, backward: false, left: false, right: false }
 type MovementKey = 'w' | 's' | 'a' | 'd'
 const movementKeys = new Map<MovementKey, keyof typeof movement>([
