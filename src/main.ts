@@ -133,6 +133,7 @@ let pending: Placement[] = []
 let renderedEraseKey = ''
 let cooldownUntil = 0
 let socket: WebSocket | null = null
+modeLabel.style.color = paletteColor(mode)
 const voxels = new Map<string, Voxel>()
 const chunkMeshes = new Map<string, THREE.Group>()
 const pendingPreviewGroup = new THREE.Group()
@@ -408,6 +409,8 @@ const selectMode = (nextMode: VoxelMode) => {
   if (nextMode !== 'erase') lastColor = nextMode
   modeLabel.textContent =
     nextMode === 'erase' ? 'ERASE' : nextMode.toUpperCase()
+  modeLabel.style.color =
+    nextMode === 'erase' ? '#dfe7dc' : paletteColor(nextMode)
   document
     .querySelectorAll('.swatch')
     .forEach((item) => item.classList.remove('is-selected'))
