@@ -181,7 +181,7 @@ button {
 }
 .section-label,
 .camera-mode-label,
-.panel-footer,
+.viewport-coordinates,
 .bottom-hint {
   color: #879b91;
   font-family: "DM Mono", monospace;
@@ -255,6 +255,25 @@ button {
 }
 .control-section {
   margin-bottom: 25px;
+}
+.pending-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  margin-bottom: 10px;
+}
+.pending-section .batch-scroll-frame {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pending-section .batch-list {
+  width: 100%;
+  height: auto;
+  min-height: 100px;
+  max-height: none;
+  flex: 1 1 auto;
 }
 .section-label {
   display: flex;
@@ -342,6 +361,23 @@ button {
   cursor: not-allowed;
   opacity: 0.35;
 }
+.submit-button.is-waiting {
+  opacity: 0.72;
+}
+.submit-button-copy {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+}
+.submit-button-copy small {
+  color: rgba(244, 234, 241, 0.68);
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+.submit-button.is-waiting .submit-button-copy small {
+  color: #efb9d9;
+}
 .button-arrow {
   font-size: 17px;
 }
@@ -355,34 +391,18 @@ button {
   letter-spacing: 0.08em;
   text-align: left;
 }
-.cooldown {
-  margin-top: auto;
-  padding: 13px 0;
-  border-top: 1px solid #344340;
-  border-bottom: 1px solid #344340;
-}
-.cooldown-label {
-  display: block;
-  margin-bottom: 4px;
-  color: #879b91;
-  font-family: "DM Mono", monospace;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-}
-.cooldown strong {
-  color: #d6c77b;
-  font-family: "DM Mono", monospace;
+.viewport-coordinates {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 3;
+  padding: 9px 11px;
+  border: 1px solid rgba(79, 98, 94, 0.7);
+  background: rgba(17, 23, 25, 0.78);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
   font-size: 11px;
-  font-weight: 400;
-}
-.cooldown.is-waiting strong {
-  color: #c36b51;
-}
-.panel-footer {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 15px;
-  font-size: 8px;
+  pointer-events: none;
 }
 .bottom-hint {
   display: flex;
@@ -424,8 +444,9 @@ button {
     border-top: 1px solid #2c3a39;
     border-left: 0;
   }
-  .cooldown {
-    margin-top: 12px;
+  .pending-section .batch-list {
+    height: min(40svh, 320px);
+    flex: 0 0 min(40svh, 320px);
   }
   .bottom-hint {
     flex-wrap: wrap;
@@ -436,6 +457,11 @@ button {
   .connection {
     padding: 8px 9px;
     font-size: 8px;
+  }
+  .viewport-coordinates {
+    right: 12px;
+    bottom: 12px;
+    font-size: 10px;
   }
 }
 .palette {
@@ -486,9 +512,6 @@ button {
 }
 .loading-bar i {
   background: #c56aa7;
-}
-.cooldown:not(.is-waiting) #cooldown-value {
-  color: #91b77a;
 }
 .submit-button {
   background: #86145f;

@@ -36,6 +36,9 @@ app.innerHTML = `
             <span id="connection-label">LOCAL PREVIEW</span>
           </div>
         </header>
+        <div class="viewport-coordinates">
+          <span id="cursor-position">X --- · Y --- · Z ---</span>
+        </div>
       </div>
       <aside class="control-panel">
         <div class="panel-heading">
@@ -63,7 +66,7 @@ app.innerHTML = `
           </div>
           <div class="palette" id="palette"></div>
         </div>
-        <div class="control-section">
+        <div class="control-section pending-section">
           <div class="section-label">
             <span>PENDING VOXELS</span>
             <span id="batch-count">0 / 100</span>
@@ -75,10 +78,6 @@ app.innerHTML = `
             <span class="scroll-hint">SCROLL ↕</span>
           </div>
         </div>
-        <button class="submit-button" id="submit" type="button" disabled>
-          <span>SUBMIT BATCH</span>
-          <span class="button-arrow">↗</span>
-        </button>
         <div class="batch-actions">
           <button class="clear-button" id="undo" type="button" disabled>
             UNDO LAST
@@ -87,13 +86,13 @@ app.innerHTML = `
             CLEAR PENDING
           </button>
         </div>
-        <div class="cooldown" id="cooldown">
-          <span class="cooldown-label">READY TO PLACE</span>
-          <strong id="cooldown-value">AVAILABLE TO SUBMIT</strong>
-        </div>
-        <div class="panel-footer">
-          <span id="cursor-position">X --- · Y --- · Z ---</span>
-        </div>
+        <button class="submit-button" id="submit" type="button" disabled>
+          <span class="submit-button-copy">
+            <span>SUBMIT BATCH</span>
+            <small id="cooldown-value">AVAILABLE TO SUBMIT</small>
+          </span>
+          <span class="button-arrow">↗</span>
+        </button>
       </aside>
     </section>
     <footer class="bottom-hint">
@@ -465,9 +464,7 @@ const updateCooldown = () => {
   cooldownValue.textContent = remaining
     ? `READY IN ${Math.ceil(remaining / 1000)}S`
     : 'AVAILABLE TO SUBMIT'
-  if (remaining)
-    document.querySelector('#cooldown')!.classList.add('is-waiting')
-  else document.querySelector('#cooldown')!.classList.remove('is-waiting')
+  submitButton.classList.toggle('is-waiting', remaining > 0)
   renderBatch()
 }
 window.setInterval(updateCooldown, 1000)
