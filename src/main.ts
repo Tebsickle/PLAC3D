@@ -471,6 +471,8 @@ const pick = (
   includePendingPreview = true,
   pickMode = mode,
   ignoredPendingKeys = new Set<string>(),
+  pendingEraseKeysAtDragStart = new Set<string>(),
+  currentDragPlacementKeys = new Set<string>(),
 ) => {
   const rect = renderer.domElement.getBoundingClientRect()
   pointer.set(
@@ -481,11 +483,12 @@ const pick = (
   const voxelTargets = includePendingPreview
     ? [...chunkMeshes.values(), pendingPreviewGroup]
     : [...chunkMeshes.values()]
+  let passedFurthestPendingErase = false
+  let blockedByCurrentDragErase = false
   const voxelHit = raycaster
     .intersectObjects(voxelTargets, true)
     .find((intersection) => {
       if (
-        pickMode !== 'erase' ||
         !includePendingPreview ||
         !ignoredPendingKeys.size
       )
@@ -502,7 +505,18 @@ const pick = (
         Math.min(WORLD_SIZE - 1, Math.floor(point.z + WORLD_SIZE / 2)),
       )
       const y = Math.max(0, Math.min(WORLD_SIZE - 1, Math.floor(point.y)))
-      return !ignoredPendingKeys.has(`${x},${y},${z}`)
+      const key = `${x},${y},${z}`
+      if (!ignoredPendingKeys.has(key)) return !blockedByCurrentDragErase
+      if (pendingEraseKeysAtDragStart.has(key))
+        passedFurthestPendingErase = true
+      else if (
+        pickMode === 'erase' &&
+        currentDragPlacementKeys.has(key) &&
+        (pendingEraseKeysAtDragStart.size === 0 || passedFurthestPendingErase)
+      ) {
+        blockedByCurrentDragErase = true
+      }
+      return false
     })
   const hit = voxelHit ?? raycaster.intersectObject(ground)[0]
   if (!hit) return
@@ -557,10 +571,12 @@ let dragMode: VoxelMode = mode
 let isDragging = false
 let suppressNextClick = false
 let dragPlacementKeys = new Set<string>()
+let pendingEraseKeysAtDragStart = new Set<string>()
 const resetPointerGesture = () => {
   activePointerId = null
   isDragging = false
   dragMode = mode
+  pendingEraseKeysAtDragStart = new Set()
 }
 renderer.domElement.addEventListener('pointerdown', (event) => {
   if (event.button !== 0 || activePointerId !== null) return
@@ -569,6 +585,11 @@ renderer.domElement.addEventListener('pointerdown', (event) => {
   dragMode = mode
   isDragging = false
   dragPlacementKeys = new Set()
+  pendingEraseKeysAtDragStart = new Set(
+    pending
+      .filter((placement) => placement.color === 'erase')
+      .map((placement) => `${placement.x},${placement.y},${placement.z}`),
+  )
   suppressNextClick = false
   renderer.domElement.setPointerCapture(event.pointerId)
 })
@@ -590,19 +611,21 @@ renderer.domElement.addEventListener('pointermove', (event) => {
   if (isDragging) {
     const position = pick(
       event,
-      dragMode === 'erase',
+      true,
       dragMode,
       new Set(
         pending
           .filter(
             (placement) =>
-              placement.color === 'erase' ||
+              (dragMode === 'erase' && placement.color === 'erase') ||
               dragPlacementKeys.has(
                 `${placement.x},${placement.y},${placement.z}`,
               ),
           )
           .map((placement) => `${placement.x},${placement.y},${placement.z}`),
       ),
+        pendingEraseKeysAtDragStart,
+        dragPlacementKeys,
     )
     if (position) {
       if (queuePlacement(position, dragMode))
@@ -617,19 +640,21 @@ renderer.domElement.addEventListener('pointerup', (event) => {
   if (isDragging) {
     const position = pick(
       event,
-      dragMode === 'erase',
+      true,
       dragMode,
       new Set(
         pending
           .filter(
             (placement) =>
-              placement.color === 'erase' ||
+              (dragMode === 'erase' && placement.color === 'erase') ||
               dragPlacementKeys.has(
                 `${placement.x},${placement.y},${placement.z}`,
               ),
           )
           .map((placement) => `${placement.x},${placement.y},${placement.z}`),
       ),
+        pendingEraseKeysAtDragStart,
+        dragPlacementKeys,
     )
     if (position) {
       if (queuePlacement(position, dragMode))
@@ -647,7 +672,15 @@ renderer.domElement.addEventListener('click', (event) => {
     suppressNextClick = false
     return
   }
-  const position = pick(event)
+  const ignoredPendingKeys =
+    mode === 'erase'
+      ? new Set(
+          pending.map(
+            (placement) => `${placement.x},${placement.y},${placement.z}`,
+          ),
+        )
+      : undefined
+  const position = pick(event, true, mode, ignoredPendingKeys)
   if (position) queuePlacement(position, mode)
 })
 submitButton.addEventListener('click', () => {
