@@ -911,6 +911,7 @@ const httpServer = createServer(async (request, response) => {
   }
 })
 const wss = new WebSocketServer({ server: httpServer, maxPayload: 256 * 1024 })
+const responsiveSockets = new WeakSet<WebSocket>()
 wss.on('connection', (socket, request) => {
   const requestPath = new URL(
     request.url ?? '/',
@@ -927,7 +928,9 @@ wss.on('connection', (socket, request) => {
   }
   let token = ''
   const sessionToken = cookieValue(request.headers.cookie, authCookieName)
+  responsiveSockets.add(socket)
   subscriptions.set(socket, new Set())
+  socket.on('pong', () => responsiveSockets.add(socket))
   socket.on('message', (data) => {
     const message = parse(data.toString())
     if (!message) return send(socket, { type: 'error', code: 'INVALID_MESSAGE', message: 'Message must be valid JSON.' })
@@ -1020,4 +1023,18 @@ wss.on('connection', (socket, request) => {
     subscriptions.delete(socket)
   })
 })
+const websocketHeartbeat = setInterval(() => {
+  for (const socket of wss.clients) {
+    if (socket.readyState !== WebSocket.OPEN) continue
+    if (!responsiveSockets.has(socket)) {
+      subscriptions.delete(socket)
+      socket.terminate()
+      continue
+    }
+    responsiveSockets.delete(socket)
+    socket.ping()
+  }
+}, 30_000)
+websocketHeartbeat.unref()
+wss.on('close', () => clearInterval(websocketHeartbeat))
 httpServer.listen(port, () => console.log(`PLAC3D server listening on http://localhost:${port}`))

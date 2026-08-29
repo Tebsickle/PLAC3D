@@ -61,9 +61,9 @@ app.innerHTML = `
           <div class="account-bar" id="account-bar" hidden>
             <div class="account-details">
               <span>LOGGED IN AS <strong id="account-username"></strong></span>
-              <small id="account-progression"></small>
             </div>
             <button id="logout" type="button">LOG OUT</button>
+            <small id="account-progression"></small>
           </div>
           <div class="panel-heading">
           <h1>PLAC3D</h1>
@@ -264,8 +264,8 @@ const renderAuthState = (user: AuthUser | null) => {
   batchLimit = currentUser?.batchLimit ?? STARTING_BATCH_LIMIT
   accountProgression.textContent = currentUser
     ? currentUser.isMaxLevel
-      ? `LEVEL ${currentUser.level} · MAX LEVEL · BATCH ${currentUser.batchLimit}`
-      : `LEVEL ${currentUser.level} · ${currentUser.voxelsIntoLevel}/${currentUser.voxelsForNextLevel} VOXELS · BATCH ${currentUser.batchLimit}`
+      ? `LEVEL ${currentUser.level} · MAX LEVEL`
+      : `LEVEL ${currentUser.level} · ${currentUser.voxelsIntoLevel}/${currentUser.voxelsForNextLevel} VOXELS`
     : ''
   if (!isAuthenticated && pending.length) pending = []
   paintHint.textContent = isAuthenticated
@@ -663,7 +663,14 @@ const movementKeys = new Map<MovementKey, keyof typeof movement>([
   ['a', 'left'],
   ['d', 'right'],
 ])
+const isEditableKeyboardTarget = (target: EventTarget | null) =>
+  target instanceof HTMLElement &&
+  (target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    target.isContentEditable)
 window.addEventListener('keydown', (event) => {
+  if (isEditableKeyboardTarget(event.target)) return
   const direction = movementKeys.get(event.key.toLowerCase() as MovementKey)
   if (!direction) return
   movement[direction] = true
@@ -673,6 +680,7 @@ window.addEventListener('keyup', (event) => {
   const direction = movementKeys.get(event.key.toLowerCase() as MovementKey)
   if (!direction) return
   movement[direction] = false
+  if (isEditableKeyboardTarget(event.target)) return
   event.preventDefault()
 })
 renderer.domElement.addEventListener('contextmenu', (event) =>
@@ -829,6 +837,8 @@ const renderBatch = () => {
   batchCount.textContent = `${pending.length} / ${batchLimit}`
   submitButton.disabled =
     !currentUser ||
+    !socket ||
+    socket.readyState !== WebSocket.OPEN ||
     pending.length === 0 ||
     Date.now() < cooldownUntil ||
     activeSubmitRequestId !== null
@@ -914,7 +924,12 @@ erase.innerHTML = '×'
 erase.addEventListener('click', () => selectMode('erase'))
 paletteElement.append(erase)
 window.addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() !== 'e' || event.repeat) return
+  if (
+    isEditableKeyboardTarget(event.target) ||
+    event.key.toLowerCase() !== 'e' ||
+    event.repeat
+  )
+    return
   selectMode(mode === 'erase' ? lastColor : 'erase')
   event.preventDefault()
 })
@@ -935,7 +950,11 @@ clearButton.addEventListener('click', () => {
   renderBatch()
 })
 window.addEventListener('keydown', (event) => {
-  if (event.key.toLowerCase() !== 'z') return
+  if (
+    isEditableKeyboardTarget(event.target) ||
+    event.key.toLowerCase() !== 'z'
+  )
+    return
   pending.pop()
   renderBatch()
 })
@@ -1286,6 +1305,23 @@ const subscribeAroundCameraTarget = () => {
 }
 
 let connectionVersion = 0
+let reconnectTimer: number | null = null
+let reconnectAttempt = 0
+const cancelScheduledReconnect = () => {
+  if (reconnectTimer === null) return
+  window.clearTimeout(reconnectTimer)
+  reconnectTimer = null
+}
+const scheduleReconnect = () => {
+  if (reconnectTimer !== null) return
+  const delay = Math.min(1_000 * 2 ** reconnectAttempt, 15_000)
+  reconnectAttempt += 1
+  connectionLabel.textContent = 'RECONNECTING'
+  reconnectTimer = window.setTimeout(() => {
+    reconnectTimer = null
+    void connect()
+  }, delay)
+}
 const refreshSessionFromServer = async () => {
   const session = await apiRequest<SessionResponse>('/api/auth/session')
   cooldownUntil = session.cooldownUntil
@@ -1297,7 +1333,7 @@ const connect = async () => {
   try {
     await refreshSessionFromServer()
   } catch {
-    renderAuthState(null)
+    if (!currentUser) renderAuthState(null)
   }
   if (version !== connectionVersion) return
   const websocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
@@ -1307,6 +1343,8 @@ const connect = async () => {
   socket = connection
   connection.addEventListener('open', () => {
     if (socket !== connection) return
+    cancelScheduledReconnect()
+    reconnectAttempt = 0
     connectionLabel.textContent = 'LIVE WORLD'
     document.querySelector('.status-dot')?.classList.add('is-live')
     connection.send(
@@ -1361,19 +1399,33 @@ const connect = async () => {
   })
   connection.addEventListener('close', () => {
     if (socket !== connection) return
+    socket = null
     activeSubmitRequestId = null
     subscribedChunkSignature = ''
-    connectionLabel.textContent = 'LOCAL PREVIEW'
     document.querySelector('.status-dot')?.classList.remove('is-live')
+    renderBatch()
+    scheduleReconnect()
   })
 }
 const reconnect = () => {
+  cancelScheduledReconnect()
+  reconnectAttempt = 0
   connectionVersion += 1
   const previous = socket
   socket = null
   previous?.close()
   void connect()
 }
+window.addEventListener('online', () => {
+  if (!socket || socket.readyState >= WebSocket.CLOSING) reconnect()
+})
+document.addEventListener('visibilitychange', () => {
+  if (
+    document.visibilityState === 'visible' &&
+    (!socket || socket.readyState >= WebSocket.CLOSING)
+  )
+    reconnect()
+})
 void connect()
 
 const resize = () => {

@@ -35,7 +35,7 @@
   background: linear-gradient(90deg, transparent, #192122 35%);
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   pointer-events: none;
 }
@@ -138,7 +138,7 @@ button {
   backdrop-filter: blur(8px);
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.1em;
 }
 .status-dot {
@@ -195,40 +195,43 @@ button {
   border-bottom: 1px solid #344340;
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 .account-bar:not([hidden]) {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 7px;
 }
 .account-details {
   display: grid;
   min-width: 0;
-  gap: 4px;
 }
 .account-details > span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
-.account-details small {
+.account-bar > small {
+  display: block;
+  grid-column: 1 / -1;
   color: #60746b;
-  font-size: 7px;
+  font-size: 10px;
   font-weight: 400;
+  line-height: 1.45;
   letter-spacing: 0.04em;
-  white-space: nowrap;
 }
 .account-bar strong {
   color: #dfe7dc;
   font-weight: 500;
 }
 .account-bar button {
+  align-self: start;
+  white-space: nowrap;
   padding: 0;
   border: 0;
   background: transparent;
   color: #c56aa7;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 .auth-overlay {
@@ -256,7 +259,7 @@ button {
 .auth-feedback {
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.1em;
 }
 .auth-heading h2 {
@@ -269,7 +272,7 @@ button {
 .auth-heading p {
   margin: 0;
   color: #879b91;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.55;
 }
 .auth-tabs {
@@ -285,7 +288,7 @@ button {
   background: transparent;
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 .auth-tab.is-active {
@@ -309,7 +312,7 @@ button {
   background: #111719;
   color: #ecf0e6;
   font-family: "DM Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
 }
 .auth-form input:focus {
   border-color: #c56aa7;
@@ -326,7 +329,7 @@ button {
   background: #86145f;
   color: #f4eaf1;
   font-family: "DM Mono", monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 .auth-primary:disabled {
@@ -340,7 +343,7 @@ button {
   background: transparent;
   color: #c56aa7;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.08em;
 }
 .auth-deadline {
@@ -373,7 +376,7 @@ button {
 .bottom-hint {
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.12em;
 }
 .camera-mode-label {
@@ -434,7 +437,7 @@ button {
   background: transparent;
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 8px;
+  font-size: 10px;
   letter-spacing: 0.04em;
   transition: color 0.2s ease, background 0.2s ease;
 }
@@ -521,7 +524,7 @@ button {
   display: block;
   padding: 19px 0;
   color: #60746b;
-  font-size: 11px;
+  font-size: 12px;
 }
 .batch-row {
   display: flex;
@@ -530,7 +533,7 @@ button {
   height: 31px;
   border-bottom: 1px solid rgba(52, 67, 64, 0.65);
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
 .batch-row i {
   width: 8px;
@@ -543,7 +546,7 @@ button {
 .batch-row b {
   margin-left: auto;
   color: #60746b;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
 }
 .submit-button {
@@ -556,7 +559,7 @@ button {
   background: #d6c77b;
   color: #18201d;
   font-family: "DM Mono", monospace;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   letter-spacing: 0.06em;
 }
@@ -574,7 +577,7 @@ button {
 }
 .submit-button-copy small {
   color: rgba(244, 234, 241, 0.68);
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.08em;
 }
@@ -590,7 +593,7 @@ button {
   background: transparent;
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.08em;
   text-align: left;
 }
@@ -604,7 +607,7 @@ button {
   background: rgba(17, 23, 25, 0.78);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(8px);
-  font-size: 11px;
+  font-size: 12px;
   pointer-events: none;
 }
 .bottom-hint {
@@ -659,12 +662,12 @@ button {
   }
   .connection {
     padding: 8px 9px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .viewport-coordinates {
     right: 12px;
     bottom: 88px;
-    font-size: 10px;
+    font-size: 11px;
   }
   .viewport-control-mode {
     left: 12px;
@@ -753,7 +756,7 @@ button {
   margin: 0;
   color: #879b91;
   font-family: "DM Mono", monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.16em;
 }
 .loading-bar {
