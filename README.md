@@ -23,9 +23,11 @@ Requires Docker Desktop or another running Docker Engine with Compose support.
 docker-compose up --build
 ```
 
-Compose builds and starts the `plac3d` website and WebSocket server together. Open the website at `http://localhost:5173`; the same service is available for WebSocket and health checks on port `8787`. SQLite data is stored in the local `plac3d.db` file mounted into the container, so stopping and recreating the container does not remove the voxel world. Check that the server is running at `http://localhost:8787/health`.
+Compose builds and starts the `plac3d` website and WebSocket server together. Open the website at `http://localhost:5173`; the same service is available for WebSocket and health checks on port `8787`. SQLite data is stored in the local `data` directory mounted into the container, so the database, WAL, and shared-memory files persist together when the container is recreated. Check that the server is running at `http://localhost:8787/health`.
 
-The Compose setup serves the production Vite build, so no separate `npm run dev` process is needed. Stop the service with `docker-compose down`; this leaves `plac3d.db` intact.
+The Compose setup serves the production Vite build, so no separate `npm run dev` process is needed. Stop the service with `docker-compose down`; this leaves the database in the local `data` directory intact.
+
+Local development and Docker use the same `data/plac3d.db` database. Stop one before starting the other; do not run `npm run dev:all` and the Docker application container at the same time.
 
 ## Interaction
 

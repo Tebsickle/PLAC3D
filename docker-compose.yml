@@ -11,12 +11,10 @@ services:
       APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
       DATABASE_PATH: ${DOCKER_DATABASE_PATH:-/app/data/plac3d.db}
     volumes:
-      - ./plac3d.db:/app/data/plac3d.db
+      - ./data:/app/data
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    profiles:
-      - tunnel
     restart: unless-stopped
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
