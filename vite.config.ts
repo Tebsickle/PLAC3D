@@ -1,4 +1,4 @@
-import { createLogger, defineConfig } from 'vite'
+import { createLogger, defineConfig, loadEnv } from 'vite'
 
 const logger = createLogger()
 const logError = logger.error.bind(logger)
@@ -12,15 +12,26 @@ logger.error = (message, options) => {
   logError(message, options)
 }
 
-export default defineConfig({
-  customLogger: logger,
-  server: {
-    host: '0.0.0.0',
-    proxy: {
-      '/ws': {
-        target: 'ws://127.0.0.1:8787',
-        ws: true,
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const appPort = Number(env.APP_PORT || 5173)
+  const serverPort = Number(env.PORT || 8787)
+
+  return {
+    customLogger: logger,
+    server: {
+      host: '0.0.0.0',
+      port: appPort,
+      strictPort: true,
+      proxy: {
+        '/api': {
+          target: `http://127.0.0.1:${serverPort}`,
+        },
+        '/ws': {
+          target: `ws://127.0.0.1:${serverPort}`,
+          ws: true,
+        },
       },
     },
-  },
+  }
 })

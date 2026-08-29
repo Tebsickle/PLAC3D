@@ -3,11 +3,12 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import {
   CHUNK_SIZE,
-  MAX_BATCH_SIZE,
   PALETTE,
+  STARTING_BATCH_LIMIT,
   WORLD_SIZE,
   chunkKey,
   paletteColor,
+  type AuthUser,
   type PaletteId,
   type Placement,
   type ServerMessage,
@@ -39,11 +40,9 @@ app.innerHTML = `
         <div class="viewport-coordinates">
           <span id="cursor-position">X --- · Y --- · Z ---</span>
         </div>
-      </div>
-      <aside class="control-panel">
-        <div class="panel-heading">
+        <div class="viewport-control-mode">
           <span class="camera-mode-label">CONTROL MODE</span>
-          <div class="input-mode-toggle" id="input-mode-toggle" role="group" aria-label="Input mode">
+          <div class="input-mode-toggle" id="input-mode-toggle" role="group" aria-label="Control mode">
             <span class="input-mode-highlight" aria-hidden="true"></span>
             <button class="input-mode-option is-active" type="button" data-input-mode="mouse" aria-pressed="true">
               MOUSE
@@ -55,6 +54,18 @@ app.innerHTML = `
               MOBILE/PHONE
             </button>
           </div>
+        </div>
+      </div>
+      <aside class="control-panel">
+        <div class="control-panel-content" id="control-panel-content" aria-hidden="true">
+          <div class="account-bar" id="account-bar" hidden>
+            <div class="account-details">
+              <span>LOGGED IN AS <strong id="account-username"></strong></span>
+              <small id="account-progression"></small>
+            </div>
+            <button id="logout" type="button">LOG OUT</button>
+          </div>
+          <div class="panel-heading">
           <h1>PLAC3D</h1>
           <p>Click or drag to add voxels!</p>
         </div>
@@ -92,7 +103,74 @@ app.innerHTML = `
             <small id="cooldown-value">AVAILABLE TO SUBMIT</small>
           </span>
           <span class="button-arrow">↗</span>
-        </button>
+          </button>
+        </div>
+        <div class="auth-overlay" id="auth-overlay">
+          <div class="auth-heading">
+            <span class="auth-eyebrow">PLACEMENT ACCESS</span>
+            <h2 id="auth-title">Log in to build.</h2>
+            <p id="auth-copy">You can explore the world now. An account is required to queue or submit voxels.</p>
+          </div>
+          <div class="auth-tabs" id="auth-tabs" role="tablist" aria-label="Authentication mode">
+            <button class="auth-tab is-active" id="login-tab" type="button" role="tab" aria-selected="true">LOGIN</button>
+            <button class="auth-tab" id="register-tab" type="button" role="tab" aria-selected="false">REGISTER</button>
+          </div>
+          <form class="auth-form" id="login-form">
+            <label>
+              <span>EMAIL OR USERNAME</span>
+              <input name="identity" autocomplete="username" required />
+            </label>
+            <label>
+              <span>PASSWORD</span>
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button class="auth-primary" type="submit">LOG IN <span>↗</span></button>
+            <button class="auth-link" id="forgot-password" type="button">FORGOT PASSWORD?</button>
+          </form>
+          <form class="auth-form" id="register-form" hidden>
+            <label>
+              <span>EMAIL</span>
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              <span>USERNAME</span>
+              <input name="username" autocomplete="username" required />
+            </label>
+            <label>
+              <span>PASSWORD</span>
+              <input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <label>
+              <span>CONFIRM PASSWORD</span>
+              <input name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <p class="auth-deadline">Your confirmation link expires after 30 minutes. If it expires, you will need to refill this form.</p>
+            <button class="auth-primary" type="submit">CREATE ACCOUNT <span>↗</span></button>
+          </form>
+          <form class="auth-form" id="forgot-form" hidden>
+            <label>
+              <span>ACCOUNT EMAIL</span>
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <p class="auth-deadline">If an account uses this email, its private reset link will expire after 30 minutes.</p>
+            <button class="auth-primary" type="submit">SEND RESET LINK <span>↗</span></button>
+            <button class="auth-link" type="button" data-back-to-login>← BACK TO LOGIN</button>
+          </form>
+          <form class="auth-form" id="reset-form" hidden>
+            <label>
+              <span>NEW PASSWORD</span>
+              <input name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <label>
+              <span>CONFIRM NEW PASSWORD</span>
+              <input name="confirmPassword" type="password" minlength="12" maxlength="128" autocomplete="new-password" required />
+            </label>
+            <p class="auth-deadline">Submitting a new password signs the account out everywhere.</p>
+            <button class="auth-primary" type="submit">CHANGE PASSWORD <span>↗</span></button>
+            <button class="auth-link" type="button" data-back-to-login>← CANCEL</button>
+          </form>
+          <p class="auth-feedback" id="auth-feedback" role="status" aria-live="polite"></p>
+        </div>
       </aside>
     </section>
     <footer class="bottom-hint">
@@ -130,6 +208,26 @@ const desktopHints = document.querySelectorAll<HTMLElement>(
 )
 const cursorPosition = document.querySelector<HTMLElement>('#cursor-position')!
 const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')!
+const controlPanelContent =
+  document.querySelector<HTMLDivElement>('#control-panel-content')!
+const authOverlay = document.querySelector<HTMLDivElement>('#auth-overlay')!
+const authTitle = document.querySelector<HTMLElement>('#auth-title')!
+const authCopy = document.querySelector<HTMLElement>('#auth-copy')!
+const authTabs = document.querySelector<HTMLDivElement>('#auth-tabs')!
+const accountBar = document.querySelector<HTMLDivElement>('#account-bar')!
+const accountUsername = document.querySelector<HTMLElement>('#account-username')!
+const accountProgression =
+  document.querySelector<HTMLElement>('#account-progression')!
+const loginTab = document.querySelector<HTMLButtonElement>('#login-tab')!
+const registerTab = document.querySelector<HTMLButtonElement>('#register-tab')!
+const loginForm = document.querySelector<HTMLFormElement>('#login-form')!
+const registerForm = document.querySelector<HTMLFormElement>('#register-form')!
+const forgotForm = document.querySelector<HTMLFormElement>('#forgot-form')!
+const resetForm = document.querySelector<HTMLFormElement>('#reset-form')!
+const authFeedback = document.querySelector<HTMLElement>('#auth-feedback')!
+const forgotPasswordButton =
+  document.querySelector<HTMLButtonElement>('#forgot-password')!
+const logoutButton = document.querySelector<HTMLButtonElement>('#logout')!
 const finishLoading = () => {
   app.removeAttribute('aria-busy')
   loadingScreen.classList.add('is-loaded')
@@ -144,6 +242,9 @@ let cooldownUntil = 0
 let socket: WebSocket | null = null
 let activeSubmitRequestId: string | null = null
 let subscribedChunkSignature = ''
+let currentUser: AuthUser | null = null
+let batchLimit = STARTING_BATCH_LIMIT
+let activeResetToken: string | null = null
 const createRequestId = () => {
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   const bytes = crypto.getRandomValues(new Uint8Array(16))
@@ -151,6 +252,28 @@ const createRequestId = () => {
   bytes[8] = (bytes[8] & 0x3f) | 0x80
   const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, '0'))
   return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10).join('')}`
+}
+const renderAuthState = (user: AuthUser | null) => {
+  currentUser = activeResetToken ? null : user
+  const isAuthenticated = currentUser !== null
+  authOverlay.hidden = isAuthenticated
+  controlPanelContent.inert = !isAuthenticated
+  controlPanelContent.setAttribute('aria-hidden', String(!isAuthenticated))
+  accountBar.hidden = !isAuthenticated
+  accountUsername.textContent = currentUser?.username ?? ''
+  batchLimit = currentUser?.batchLimit ?? STARTING_BATCH_LIMIT
+  accountProgression.textContent = currentUser
+    ? currentUser.isMaxLevel
+      ? `LEVEL ${currentUser.level} · MAX LEVEL · BATCH ${currentUser.batchLimit}`
+      : `LEVEL ${currentUser.level} · ${currentUser.voxelsIntoLevel}/${currentUser.voxelsForNextLevel} VOXELS · BATCH ${currentUser.batchLimit}`
+    : ''
+  if (!isAuthenticated && pending.length) pending = []
+  paintHint.textContent = isAuthenticated
+    ? inputMode === 'mobile'
+      ? 'TAP PLACE'
+      : 'LMB PAINT'
+    : 'LOGIN TO PLACE'
+  renderBatch()
 }
 modeLabel.style.color = paletteColor(mode)
 const voxels = new Map<string, Voxel>()
@@ -216,7 +339,11 @@ const setInputMode = (nextMode: InputMode) => {
     : isTouchpadMode
       ? 'PINCH ZOOM'
       : 'WHEEL ZOOM'
-  paintHint.textContent = isMobileMode ? 'TAP PLACE' : 'LMB PAINT'
+  paintHint.textContent = currentUser
+    ? isMobileMode
+      ? 'TAP PLACE'
+      : 'LMB PAINT'
+    : 'LOGIN TO PLACE'
 }
 setInputMode(inputMode)
 inputModeButtons.forEach((button) => {
@@ -226,6 +353,283 @@ inputModeButtons.forEach((button) => {
     setInputMode(nextMode)
   })
 })
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset'
+const setAuthMode = (nextMode: AuthMode) => {
+  const isLogin = nextMode === 'login'
+  const isRegister = nextMode === 'register'
+  loginTab.classList.toggle('is-active', isLogin)
+  registerTab.classList.toggle('is-active', isRegister)
+  loginTab.setAttribute('aria-selected', String(isLogin))
+  registerTab.setAttribute('aria-selected', String(isRegister))
+  authTabs.hidden = !isLogin && !isRegister
+  loginForm.hidden = !isLogin
+  registerForm.hidden = !isRegister
+  forgotForm.hidden = nextMode !== 'forgot'
+  resetForm.hidden = nextMode !== 'reset'
+  const copy: Record<AuthMode, [string, string]> = {
+    login: [
+      'Log in to build.',
+      'You can explore the world now. An account is required to queue or submit voxels.',
+    ],
+    register: [
+      'Create an account.',
+      'Confirm your email within 30 minutes, then return here to log in.',
+    ],
+    forgot: [
+      'Reset your password.',
+      'Enter the email attached to your account to request a private reset link.',
+    ],
+    reset: [
+      'Choose a new password.',
+      'This private link can be used once and expires after 30 minutes.',
+    ],
+  }
+  ;[authTitle.textContent, authCopy.textContent] = copy[nextMode]
+  authFeedback.textContent = ''
+}
+type SessionResponse = {
+  user: AuthUser | null
+  cooldownUntil: number
+}
+type LoginResponse = SessionResponse & { ok: true }
+type RegistrationResponse = {
+  ok: true
+  message: string
+  developmentVerificationUrl?: string
+}
+type ForgotPasswordResponse = {
+  ok: true
+  message: string
+  developmentResetUrl?: string
+}
+class ApiError extends Error {}
+const apiRequest = async <T>(path: string, init?: RequestInit) => {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    ...init,
+    headers: {
+      ...(init?.body ? { 'content-type': 'application/json' } : {}),
+      ...init?.headers,
+    },
+  })
+  const body = (await response.json().catch(() => ({}))) as {
+    error?: string
+  }
+  if (!response.ok)
+    throw new ApiError(body.error ?? 'The server could not complete the request.')
+  return body as T
+}
+const showAuthFeedback = (
+  message: string,
+  tone: 'neutral' | 'success' | 'error' = 'neutral',
+) => {
+  authFeedback.className = `auth-feedback is-${tone}`
+  authFeedback.textContent = message
+}
+const appendDevelopmentLink = (url: string, label: string) => {
+  const link = document.createElement('a')
+  link.href = url
+  link.textContent = label
+  authFeedback.append(document.createElement('br'), link)
+}
+loginTab.addEventListener('click', () => setAuthMode('login'))
+registerTab.addEventListener('click', () => setAuthMode('register'))
+loginForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const submit = loginForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+  const data = new FormData(loginForm)
+  submit.disabled = true
+  showAuthFeedback('LOGGING IN…')
+  try {
+    const response = await apiRequest<LoginResponse>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({
+        identity: data.get('identity'),
+        password: data.get('password'),
+      }),
+    })
+    cooldownUntil = response.cooldownUntil
+    renderAuthState(response.user)
+    loginForm.reset()
+    reconnect()
+  } catch (error) {
+    showAuthFeedback(
+      error instanceof Error ? error.message.toUpperCase() : 'LOGIN FAILED.',
+      'error',
+    )
+  } finally {
+    submit.disabled = false
+  }
+})
+registerForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const data = new FormData(registerForm)
+  if (data.get('password') !== data.get('confirmPassword')) {
+    showAuthFeedback('PASSWORDS DO NOT MATCH.', 'error')
+    return
+  }
+  const submit =
+    registerForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+  submit.disabled = true
+  showAuthFeedback(
+    'REGISTRATION RECEIVED. CHECK YOUR EMAIL TO FINISH WITHIN 30 MINUTES.',
+    'success',
+  )
+  try {
+    const response = await apiRequest<RegistrationResponse>(
+      '/api/auth/register',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          email: data.get('email'),
+          username: data.get('username'),
+          password: data.get('password'),
+        }),
+      },
+    )
+    registerForm.reset()
+    showAuthFeedback(response.message.toUpperCase(), 'success')
+    if (response.developmentVerificationUrl)
+      appendDevelopmentLink(
+        response.developmentVerificationUrl,
+        'OPEN DEVELOPMENT CONFIRMATION LINK ↗',
+      )
+  } catch (error) {
+    showAuthFeedback(
+      error instanceof Error
+        ? error.message.toUpperCase()
+        : 'REGISTRATION FAILED.',
+      'error',
+    )
+  } finally {
+    submit.disabled = false
+  }
+})
+forgotPasswordButton.addEventListener('click', () => {
+  setAuthMode('forgot')
+})
+document.querySelectorAll<HTMLButtonElement>('[data-back-to-login]').forEach(
+  (button) =>
+    button.addEventListener('click', () => {
+      const wasResetting = !resetForm.hidden
+      activeResetToken = null
+      setAuthMode('login')
+      if (wasResetting) reconnect()
+    }),
+)
+forgotForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const submit = forgotForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+  const data = new FormData(forgotForm)
+  submit.disabled = true
+  showAuthFeedback(
+    'IF AN ACCOUNT USES THAT EMAIL, ITS RESET LINK IS ON THE WAY.',
+    'success',
+  )
+  try {
+    const response = await apiRequest<ForgotPasswordResponse>(
+      '/api/auth/forgot-password',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email: data.get('email') }),
+      },
+    )
+    forgotForm.reset()
+    showAuthFeedback(response.message.toUpperCase(), 'success')
+    if (response.developmentResetUrl)
+      appendDevelopmentLink(
+        response.developmentResetUrl,
+        'OPEN DEVELOPMENT PASSWORD-RESET LINK ↗',
+      )
+  } catch (error) {
+    showAuthFeedback(
+      error instanceof Error
+        ? error.message.toUpperCase()
+        : 'PASSWORD RECOVERY FAILED.',
+      'error',
+    )
+  } finally {
+    submit.disabled = false
+  }
+})
+resetForm.addEventListener('submit', async (event) => {
+  event.preventDefault()
+  const data = new FormData(resetForm)
+  if (data.get('password') !== data.get('confirmPassword')) {
+    showAuthFeedback('PASSWORDS DO NOT MATCH.', 'error')
+    return
+  }
+  if (!activeResetToken) {
+    showAuthFeedback('THIS PASSWORD-RESET LINK IS INVALID.', 'error')
+    return
+  }
+  const submit = resetForm.querySelector<HTMLButtonElement>('[type="submit"]')!
+  submit.disabled = true
+  showAuthFeedback('CHANGING PASSWORD…')
+  try {
+    const response = await apiRequest<{ ok: true; message: string }>(
+      '/api/auth/reset-password',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          token: activeResetToken,
+          password: data.get('password'),
+        }),
+      },
+    )
+    activeResetToken = null
+    resetForm.reset()
+    renderAuthState(null)
+    setAuthMode('login')
+    showAuthFeedback(response.message.toUpperCase(), 'success')
+    reconnect()
+  } catch (error) {
+    showAuthFeedback(
+      error instanceof Error
+        ? error.message.toUpperCase()
+        : 'PASSWORD RESET FAILED.',
+      'error',
+    )
+  } finally {
+    submit.disabled = false
+  }
+})
+logoutButton.addEventListener('click', async () => {
+  logoutButton.disabled = true
+  try {
+    await apiRequest<{ ok: true }>('/api/auth/logout', { method: 'POST' })
+  } finally {
+    logoutButton.disabled = false
+    cooldownUntil = 0
+    renderAuthState(null)
+    reconnect()
+  }
+})
+const authParameters = new URLSearchParams(window.location.search)
+const resetTokenFromUrl = authParameters.get('resetToken')
+const authResult = authParameters.get('auth')
+if (resetTokenFromUrl) {
+  activeResetToken = resetTokenFromUrl
+  setAuthMode('reset')
+  window.history.replaceState({}, '', window.location.pathname)
+} else if (authResult) {
+  setAuthMode('login')
+  const messages: Record<string, [string, 'success' | 'error']> = {
+    verified: ['EMAIL CONFIRMED. YOU CAN LOG IN NOW.', 'success'],
+    expired: [
+      'THAT CONFIRMATION LINK EXPIRED. PLEASE REGISTER AGAIN.',
+      'error',
+    ],
+    invalid: ['THAT CONFIRMATION LINK IS INVALID OR ALREADY USED.', 'error'],
+    conflict: [
+      'THAT EMAIL OR USERNAME WAS CLAIMED. PLEASE REGISTER AGAIN.',
+      'error',
+    ],
+  }
+  const result = messages[authResult]
+  if (result) showAuthFeedback(...result)
+  window.history.replaceState({}, '', window.location.pathname)
+}
 renderer.domElement.addEventListener(
   'wheel',
   (event) => {
@@ -422,8 +826,9 @@ const rebuildPendingPreview = () => {
 }
 
 const renderBatch = () => {
-  batchCount.textContent = `${pending.length} / ${MAX_BATCH_SIZE}`
+  batchCount.textContent = `${pending.length} / ${batchLimit}`
   submitButton.disabled =
+    !currentUser ||
     pending.length === 0 ||
     Date.now() < cooldownUntil ||
     activeSubmitRequestId !== null
@@ -460,7 +865,10 @@ const renderBatch = () => {
 const updateCooldown = () => {
   const remaining = Math.max(0, cooldownUntil - Date.now())
   submitButton.disabled =
-    pending.length === 0 || remaining > 0 || activeSubmitRequestId !== null
+    !currentUser ||
+    pending.length === 0 ||
+    remaining > 0 ||
+    activeSubmitRequestId !== null
   cooldownValue.textContent = remaining
     ? `READY IN ${Math.ceil(remaining / 1000)}S`
     : 'AVAILABLE TO SUBMIT'
@@ -611,6 +1019,7 @@ const queuePlacement = (
   position: { x: number; y: number; z: number },
   color: VoxelMode,
 ) => {
+  if (!currentUser) return false
   const key = `${position.x},${position.y},${position.z}`
   const existingIndex = pending.findIndex(
     (item) =>
@@ -627,7 +1036,7 @@ const queuePlacement = (
     }
     if (!voxels.has(key)) return false
   }
-  if (pending.length >= MAX_BATCH_SIZE || existingIndex >= 0) return false
+  if (pending.length >= batchLimit || existingIndex >= 0) return false
   pending.push({ ...position, color })
   renderBatch()
   return true
@@ -643,6 +1052,7 @@ let pendingEraseKeysAtDragStart = new Set<string>()
 const mobileTouchPointers = new Map<number, { x: number; y: number }>()
 let mobileTouchGestureMoved = false
 const queuePlacementAtPointer = (event: PointerEvent) => {
+  if (!currentUser) return
   const ignoredPendingKeys =
     mode === 'erase'
       ? new Set(
@@ -806,6 +1216,7 @@ renderer.domElement.addEventListener('click', (event) => {
 })
 submitButton.addEventListener('click', () => {
   if (
+    !currentUser ||
     !socket ||
     socket.readyState !== WebSocket.OPEN ||
     !pending.length ||
@@ -874,26 +1285,44 @@ const subscribeAroundCameraTarget = () => {
   socket.send(JSON.stringify({ type: 'subscribe', chunks }))
 }
 
-const connect = () => {
+let connectionVersion = 0
+const refreshSessionFromServer = async () => {
+  const session = await apiRequest<SessionResponse>('/api/auth/session')
+  cooldownUntil = session.cooldownUntil
+  renderAuthState(session.user)
+  return session
+}
+const connect = async () => {
+  const version = ++connectionVersion
+  try {
+    await refreshSessionFromServer()
+  } catch {
+    renderAuthState(null)
+  }
+  if (version !== connectionVersion) return
   const websocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const defaultWebsocketUrl = `${websocketProtocol}//${window.location.host}/ws`
   const websocketUrl = import.meta.env.VITE_WS_URL ?? defaultWebsocketUrl
-  socket = new WebSocket(websocketUrl)
-  socket.addEventListener('open', () => {
+  const connection = new WebSocket(websocketUrl)
+  socket = connection
+  connection.addEventListener('open', () => {
+    if (socket !== connection) return
     connectionLabel.textContent = 'LIVE WORLD'
     document.querySelector('.status-dot')?.classList.add('is-live')
-    socket?.send(
+    connection.send(
       JSON.stringify({
         type: 'hello',
         token: localStorage.getItem('plac3d-token') ?? undefined,
       }),
     )
   })
-  socket.addEventListener('message', (event) => {
+  connection.addEventListener('message', (event) => {
+    if (socket !== connection) return
     const message = JSON.parse(event.data) as ServerMessage
     if (message.type === 'hello') {
       localStorage.setItem('plac3d-token', message.token)
       cooldownUntil = message.cooldownUntil
+      renderAuthState(message.user)
       subscribedChunkSignature = ''
       subscribeAroundCameraTarget()
     }
@@ -913,6 +1342,7 @@ const connect = () => {
       activeSubmitRequestId = null
       pending = []
       renderBatch()
+      void refreshSessionFromServer().catch(() => undefined)
     }
     if (message.type === 'error') {
       if (
@@ -924,18 +1354,27 @@ const connect = () => {
       if (message.requestId === activeSubmitRequestId)
         activeSubmitRequestId = null
       cooldownUntil = message.cooldownUntil ?? cooldownUntil
+      if (message.code === 'AUTH_REQUIRED') renderAuthState(null)
       cooldownValue.textContent = message.message.toUpperCase()
       renderBatch()
     }
   })
-  socket.addEventListener('close', () => {
+  connection.addEventListener('close', () => {
+    if (socket !== connection) return
     activeSubmitRequestId = null
     subscribedChunkSignature = ''
     connectionLabel.textContent = 'LOCAL PREVIEW'
     document.querySelector('.status-dot')?.classList.remove('is-live')
   })
 }
-connect()
+const reconnect = () => {
+  connectionVersion += 1
+  const previous = socket
+  socket = null
+  previous?.close()
+  void connect()
+}
+void connect()
 
 const resize = () => {
   const width = viewport.clientWidth
@@ -973,4 +1412,4 @@ const animate = () => {
   renderer.render(scene, camera)
 }
 animate()
-renderBatch()
+renderAuthState(null)

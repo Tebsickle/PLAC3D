@@ -1,7 +1,71 @@
 export const WORLD_SIZE = 1000
 export const CHUNK_SIZE = 16
-export const MAX_BATCH_SIZE = 100
+export const MAX_LEVEL = 50
+export const STARTING_BATCH_LIMIT = 50
+export const MAX_BATCH_SIZE = 500
 export const COOLDOWN_MS = 60_000
+
+export const STARTING_LEVEL_REQUIREMENT = 100
+export const LEVEL_REQUIREMENT_GROWTH = 1.2
+const TOTAL_BATCH_LEVEL_WEIGHT = (MAX_LEVEL * (MAX_LEVEL + 1)) / 2 - 1
+
+export const batchLimitForLevel = (level: number) => {
+  const normalizedLevel = Math.min(
+    MAX_LEVEL,
+    Math.max(1, Math.floor(Number.isFinite(level) ? level : 1)),
+  )
+  const earnedLevelWeight =
+    (normalizedLevel * (normalizedLevel + 1)) / 2 - 1
+  return (
+    STARTING_BATCH_LIMIT +
+    Math.round(
+      ((MAX_BATCH_SIZE - STARTING_BATCH_LIMIT) * earnedLevelWeight) /
+        TOTAL_BATCH_LEVEL_WEIGHT,
+    )
+  )
+}
+
+export type UserProgression = {
+  level: number
+  batchLimit: number
+  voxelsIntoLevel: number
+  voxelsForNextLevel: number | null
+  nextLevelAt: number | null
+  isMaxLevel: boolean
+}
+
+export const progressionForVoxelCount = (
+  voxelCount: number,
+): UserProgression => {
+  const normalizedCount = Number.isFinite(voxelCount)
+    ? Math.max(0, Math.floor(voxelCount))
+    : 0
+  let level = 1
+  let levelStart = 0
+  let levelRequirement = STARTING_LEVEL_REQUIREMENT
+
+  while (
+    level < MAX_LEVEL &&
+    normalizedCount >= levelStart + levelRequirement
+  ) {
+    levelStart += levelRequirement
+    level += 1
+    if (level < MAX_LEVEL)
+      levelRequirement = Math.ceil(
+        levelRequirement * LEVEL_REQUIREMENT_GROWTH,
+      )
+  }
+
+  const isMaxLevel = level === MAX_LEVEL
+  return {
+    level,
+    batchLimit: batchLimitForLevel(level),
+    voxelsIntoLevel: normalizedCount - levelStart,
+    voxelsForNextLevel: isMaxLevel ? null : levelRequirement,
+    nextLevelAt: isMaxLevel ? null : levelStart + levelRequirement,
+    isMaxLevel,
+  }
+}
 
 export const PALETTE = [
   { id: 'white', label: 'White', hex: '#FFFFFF' },
@@ -25,6 +89,10 @@ export const PALETTE = [
 export type PaletteId = (typeof PALETTE)[number]['id']
 export type Voxel = { x: number; y: number; z: number; color: PaletteId }
 export type Placement = Omit<Voxel, 'color'> & { color: PaletteId | 'erase' }
+export type AuthUser = {
+  username: string
+  voxelCount: number
+} & UserProgression
 
 export type ClientMessage =
   | { type: 'hello'; token?: string }
@@ -32,7 +100,12 @@ export type ClientMessage =
   | { type: 'place'; requestId: string; placements: Placement[] }
 
 export type ServerMessage =
-  | { type: 'hello'; token: string; cooldownUntil: number }
+  | {
+      type: 'hello'
+      token: string
+      cooldownUntil: number
+      user: AuthUser | null
+    }
   | { type: 'chunks'; chunks: Record<string, Voxel[]> }
   | { type: 'updates'; voxels: Voxel[]; erased: Array<{ x: number; y: number; z: number }> }
   | {

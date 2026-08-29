@@ -1,12 +1,25 @@
 services:
   plac3d:
     build: .
+    env_file:
+      - .env
     ports:
-      - "5173:8787"
-      - "8787:8787"
+      - "${APP_PORT:-5173}:${PORT:-8787}"
+      - "${PORT:-8787}:${PORT:-8787}"
     environment:
-      PORT: 8787
-      SESSION_SECRET: change-this-in-production
-      DATABASE_PATH: /app/data/plac3d.db
+      PORT: ${PORT:-8787}
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:5173}
+      DATABASE_PATH: ${DOCKER_DATABASE_PATH:-/app/data/plac3d.db}
     volumes:
       - ./plac3d.db:/app/data/plac3d.db
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    profiles:
+      - tunnel
+    restart: unless-stopped
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    command: tunnel --no-autoupdate run
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
