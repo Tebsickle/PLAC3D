@@ -7,7 +7,6 @@
     "dev": "vite --host 0.0.0.0",
     "dev:server": "node --env-file=.env --env-file=.env.development --watch --import tsx server/index.ts",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:server\"",
-    "tunnel": "docker-compose --profile tunnel up cloudflared",
     "build": "tsc && vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "test": "node --test --import tsx",
